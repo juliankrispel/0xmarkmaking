@@ -63,22 +63,17 @@
           el.style.display = 'grid';
           el.innerHTML = 'Could not start the 3D engine.<br>Open this file in an up-to-date browser (Chrome, or Safari on iOS&nbsp;16.4+) with an internet connection.';
         }
-      }, 6000);
+      }, 9000);
     });
   </script>
 
-  <script type="importmap">
-  {
-    "imports": {
-      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
-      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
-    }
-  }
-  </script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/build/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.137.0/examples/js/controls/OrbitControls.js"></script>
 
-  <script type="module">
-  import * as THREE from 'three';
-  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+  <script>
+  (function(){
+  'use strict';
+  function boot(){
 
   // ---------- palette ----------
   const COL = {
@@ -106,6 +101,8 @@
   function cyl(rt,rb,h,seg,color,opts){ return mesh(new THREE.CylinderGeometry(rt,rb,h,seg), color, opts); }
   function cone(r,h,seg,color,opts){ return mesh(new THREE.ConeGeometry(r,h,seg), color, opts); }
   function sphere(r,color,opts){ return mesh(new THREE.IcosahedronGeometry(r,0), color, opts); }
+  function capsule(r,len,color,opts){ const g=new THREE.Group();
+    put(g, cyl(r,r,len,10,color,opts)); put(g, sphere(r,color,opts),0,len/2,0); put(g, sphere(r,color,opts),0,-len/2,0); return g; }
   function put(parent, m, x=0,y=0,z=0, rx=0,ry=0,rz=0){ m.position.set(x,y,z); m.rotation.set(rx,ry,rz); parent.add(m); return m; }
 
   // ---------- shared building blocks ----------
@@ -371,11 +368,11 @@
     put(v, box(0.22,0.5,0.24,COL.pants), -0.16,0.25,0); put(v, box(0.22,0.5,0.24,COL.pants), 0.16,0.25,0);
     put(v, box(0.26,0.14,0.34,COL.timber), -0.16,0.07,0.04); put(v, box(0.26,0.14,0.34,COL.timber), 0.16,0.07,0.04); // boots
     // torso (capsule-ish)
-    put(v, mesh(new THREE.CapsuleGeometry(0.32,0.5,3,8), COL.tunic), 0,0.95,0);
+    put(v, capsule(0.32,0.5,COL.tunic), 0,0.95,0);
     put(v, box(0.7,0.12,0.34,COL.timber), 0,0.66,0); // belt
     // arms
-    const la = mesh(new THREE.CapsuleGeometry(0.1,0.45,2,6), COL.tunic); put(v, la, -0.42,0.95,0, 0,0,0.25);
-    const ra = mesh(new THREE.CapsuleGeometry(0.1,0.45,2,6), COL.tunic); put(v, ra, 0.42,0.95,0, 0,0,-0.25);
+    const la = capsule(0.1,0.45,COL.tunic); put(v, la, -0.42,0.95,0, 0,0,0.25);
+    const ra = capsule(0.1,0.45,COL.tunic); put(v, ra, 0.42,0.95,0, 0,0,-0.25);
     // head + hat
     put(v, sphere(0.26,COL.skin), 0,1.5,0);
     put(v, cyl(0.3,0.34,0.16,10,COL.hat), 0,1.66,0);
@@ -424,7 +421,7 @@
     // villagers
     [[-1.2,1.2],[1.4,-0.6],[0.6,2.0]].forEach(([x,z])=>{
       const v = new THREE.Group(); put(g, v, x, y, z, 0, Math.random()*6.28, 0);
-      put(v, box(0.18,0.4,0.2,COL.pants),0,0.2,0); put(v, mesh(new THREE.CapsuleGeometry(0.22,0.36,2,6),COL.tunic),0,0.66,0);
+      put(v, box(0.18,0.4,0.2,COL.pants),0,0.2,0); put(v, capsule(0.22,0.36,COL.tunic),0,0.66,0);
       put(v, sphere(0.18,COL.skin),0,1.04,0); put(v, cyl(0.21,0.24,0.1,8,COL.hat),0,1.16,0);
     });
   });
@@ -435,20 +432,20 @@
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.outputEncoding = THREE.sRGBEncoding;
 
   const scene = new THREE.Scene();
   // gradient sky
   scene.background = (()=>{
     const cnv=document.createElement('canvas'); cnv.width=2; cnv.height=256; const ctx=cnv.getContext('2d');
     const grd=ctx.createLinearGradient(0,0,0,256); grd.addColorStop(0,'#3a4d61'); grd.addColorStop(1,'#161d25');
-    ctx.fillStyle=grd; ctx.fillRect(0,0,2,256); const tx=new THREE.CanvasTexture(cnv); tx.colorSpace=THREE.SRGBColorSpace; return tx;
+    ctx.fillStyle=grd; ctx.fillRect(0,0,2,256); const tx=new THREE.CanvasTexture(cnv); tx.encoding=THREE.sRGBEncoding; return tx;
   })();
 
   const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
   camera.position.set(7.5, 6.0, 9.0);
 
-  const controls = new OrbitControls(camera, canvas);
+  const controls = new THREE.OrbitControls(camera, canvas);
   controls.enableDamping = true; controls.dampingFactor = 0.08;
   controls.minDistance = 4; controls.maxDistance = 22;
   controls.maxPolarAngle = Math.PI*0.49;
@@ -538,12 +535,21 @@
   function resize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
   addEventListener('resize', resize); resize();
 
-  // error surface (e.g. importmap unsupported)
+  // error surface (e.g. 3D engine failed to load)
   addEventListener('error', e=>{ const el=document.getElementById('err'); el.style.display='grid'; el.textContent='Could not load 3D engine. Open this file in a modern browser (Chrome/Safari) with internet access.'; });
 
   show(Object.keys(MODELS)[0]);
   animate();
   window.__villageReady = true;
+  } // end boot
+
+  // Wait until the Three.js libraries have loaded (robust to script order),
+  // then start. The load-time fallback above shows a message if they never do.
+  (function wait(){
+    if (typeof THREE !== 'undefined' && THREE.OrbitControls) boot();
+    else setTimeout(wait, 40);
+  })();
+  })();
   </script>
 </body>
 </html>
