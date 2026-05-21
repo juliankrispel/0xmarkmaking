@@ -101,6 +101,8 @@
   function cyl(rt,rb,h,seg,color,opts){ return mesh(new THREE.CylinderGeometry(rt,rb,h,seg), color, opts); }
   function cone(r,h,seg,color,opts){ return mesh(new THREE.ConeGeometry(r,h,seg), color, opts); }
   function sphere(r,color,opts){ return mesh(new THREE.IcosahedronGeometry(r,0), color, opts); }
+  function ball(r,color,opts){ return mesh(new THREE.SphereGeometry(r,16,12), color, opts); }
+  function dome(r,color,opts){ return mesh(new THREE.SphereGeometry(r,16,10,0,Math.PI*2,0,Math.PI*0.55), color, opts); }
   function put(parent, m, x=0,y=0,z=0, rx=0,ry=0,rz=0){ m.position.set(x,y,z); m.rotation.set(rx,ry,rz); parent.add(m); return m; }
 
   // ---------- shared building blocks ----------
@@ -208,24 +210,47 @@
     const b = sphere(s, COL.rock); b.scale.set(1,0.75,1.1); put(group, b, x, y+s*0.55, z, Math.random(),Math.random(),Math.random());
     return b;
   }
-  // cute abstract villager: cone body, sphere head, pointed hat, sphere eyes,
-  // detached floating sphere hands. Smooth-shaded to read as a soft toy.
-  function villager(color, scale){
-    scale = scale || 1;
+  // cute abstract unit: cone body, round (spherical) head + hands, a role hat
+  // and an optional held prop. opts = { cloak, hat, accent, prop, scale }.
+  const soft = {flat:false};
+  function villager(opts){
+    opts = opts || {};
+    const cloak = opts.cloak || COL.tunic;
     const g = new THREE.Group();
-    const soft = {flat:false};
-    put(g, cone(0.46, 1.0, 16, color, soft), 0, 0.5, 0);        // body / cloak
-    put(g, sphere(0.27, COL.skin, soft), 0, 1.05, 0);           // head
-    put(g, cone(0.27, 0.46, 16, COL.hat, soft), 0, 1.45, 0);    // pointed hat
-    put(g, sphere(0.07, COL.hat, soft), 0, 1.7, 0);             // hat bobble
-    put(g, sphere(0.055, COL.eye, soft), -0.1, 1.07, 0.25);     // eyes
-    put(g, sphere(0.055, COL.eye, soft),  0.1, 1.07, 0.25);
-    const lh = sphere(0.1, COL.skin, soft); put(g, lh, -0.5, 0.55, 0.12);
+    put(g, cone(0.46, 1.0, 18, cloak, soft), 0, 0.5, 0);       // body / cloak
+    put(g, ball(0.27, COL.skin, soft), 0, 1.05, 0);            // round head
+    put(g, ball(0.055, COL.eye, soft), -0.1, 1.08, 0.25);      // eyes
+    put(g, ball(0.055, COL.eye, soft),  0.1, 1.08, 0.25);
+    addHat(g, opts.hat, opts.accent);
+    // floating round hands (each a group so it can bob and hold a prop)
+    const lh = new THREE.Group(); put(lh, ball(0.1, COL.skin, soft)); put(g, lh, -0.5, 0.55, 0.12);
     lh.userData.hover = { base:0.55, amp:0.07, speed:3.0, phase:0 };
-    const rh = sphere(0.1, COL.skin, soft); put(g, rh, 0.5, 0.55, 0.12);
+    const rh = new THREE.Group(); put(rh, ball(0.1, COL.skin, soft)); put(g, rh, 0.5, 0.55, 0.12);
     rh.userData.hover = { base:0.55, amp:0.07, speed:3.0, phase:Math.PI };
-    g.scale.setScalar(scale);
+    if(opts.prop) addProp(rh, lh, opts.prop);
+    g.scale.setScalar(opts.scale || 1);
     return g;
+  }
+  function addHat(g, type, accent){
+    accent = accent || COL.hat;
+    if(!type || type==='point'){ put(g, cone(0.27,0.46,16, accent, soft), 0,1.45,0); put(g, ball(0.07, accent, soft), 0,1.72,0); }
+    else if(type==='cap'){ put(g, dome(0.29, accent, soft), 0,1.16,0); put(g, box(0.34,0.05,0.2, accent, soft), 0,1.12,0.16); }
+    else if(type==='chef'){ put(g, cyl(0.22,0.24,0.18,16, 0xf3efe6, soft), 0,1.4,0); put(g, ball(0.26, 0xf8f6f0, soft), 0,1.62,0); }
+    else if(type==='straw'){ put(g, cone(0.56,0.16,18, COL.thatch, soft), 0,1.34,0); put(g, cone(0.28,0.24,16, COL.thatchDk, soft), 0,1.46,0); }
+    else if(type==='helmet'){ put(g, dome(0.3, COL.metal, {flat:false,metal:0.35,rough:0.45}), 0,1.12,0); put(g, box(0.07,0.3,0.05, accent, soft), 0,1.36,0); }
+    else if(type==='minerhelmet'){ put(g, dome(0.3, COL.metal, {flat:false,metal:0.35,rough:0.45}), 0,1.12,0); put(g, ball(0.06, 0xfff3b0, soft), 0,1.2,0.28); }
+    else if(type==='hood'){ put(g, cone(0.34,0.55,16, accent, soft), 0,1.42,0); }
+  }
+  function addProp(rh, lh, type){
+    const m = {flat:false, metal:0.4, rough:0.4};
+    if(type==='hammer'){ put(rh, cyl(0.035,0.035,0.45,8,COL.log,soft), 0,-0.05,0.06, 0.4,0,0); put(rh, box(0.18,0.12,0.12, COL.metal, m), 0,0.14,0.22); }
+    else if(type==='axe'){ put(rh, cyl(0.035,0.035,0.5,8,COL.log,soft), 0,-0.08,0.06, 0.35,0,0); put(rh, box(0.05,0.2,0.24, COL.metal, m), 0.02,0.16,0.24, 0.35,0,0); }
+    else if(type==='pickaxe'){ put(rh, cyl(0.035,0.035,0.5,8,COL.log,soft), 0,-0.05,0.06, 0.45,0,0); put(rh, box(0.5,0.07,0.07, COL.metal, m), 0,0.18,0.22, 0.45,0,0); }
+    else if(type==='bread'){ const b=ball(0.16,0xcb8e4e,soft); b.scale.set(1.5,0.85,0.95); put(rh, b, 0.02,0.06,0.2); put(rh, box(0.04,0.02,0.18,0xa86e36,soft), 0.02,0.2,0.2); }
+    else if(type==='wheat'){ for(let i=0;i<6;i++){ const a=i/6*6.28; put(rh, box(0.04,0.42,0.04, COL.wheat, soft), 0.02+Math.cos(a)*0.06, 0.2, 0.18+Math.sin(a)*0.06, Math.cos(a)*0.18,0,Math.sin(a)*0.18); } }
+    else if(type==='rod'){ put(rh, cyl(0.02,0.028,0.85,6, COL.log, soft), 0.02,0.22,0.06, -0.5,0,0); put(rh, cyl(0.005,0.005,0.4,4, COL.eye, soft), 0.02,0.0,0.55); put(rh, ball(0.05, 0x8fb8c8, soft), 0.02,-0.18,0.6); }
+    else if(type==='bow'){ const bow=mesh(new THREE.TorusGeometry(0.3,0.025,6,18,Math.PI*1.25), COL.log, soft); put(lh, bow, 0,0,0.06, 0, Math.PI/2, Math.PI*0.375); put(lh, cyl(0.006,0.006,0.56,4, 0xddd6c4, soft), 0,0,0.06); }
+    else if(type==='soldier'){ put(rh, box(0.05,0.5,0.07, COL.metal, {flat:false,metal:0.5,rough:0.3}), 0.04,0.32,0.08); put(rh, box(0.22,0.05,0.09, COL.gold, m), 0.04,0.08,0.08); put(rh, cyl(0.03,0.03,0.12,6, COL.timber, soft), 0.04,-0.02,0.08); const sh=cyl(0.26,0.26,0.06,10, COL.flag, soft); sh.rotation.x=Math.PI/2; put(lh, sh, 0,0,0.13); put(lh, ball(0.07, COL.gold, soft), 0,0,0.17); }
   }
 
   // ---------- model builders ----------
@@ -378,14 +403,37 @@
     put(g, sphere(0.1,COL.gold,{metal:0.6,rough:0.3}), 0.7, y+0.7, 0.2);
   });
 
-  add('Villager', 'Cute cone villagers — floating & bobbing', g=>{
-    const y = baseTile(g, 3.2, 0.5, COL.grass);
-    const cloaks = [COL.tunic, COL.roofRed, COL.leaf];
-    const spots = [[0,0,1.0],[0.95,0.3,0.78],[-0.85,-0.4,0.66]];
-    spots.forEach(([x,z,s],i)=>{
-      const v = villager(cloaks[i%cloaks.length], s);
-      put(g, v, x, y + 0.28*s + 0.05, z, 0, (i*2.1), 0);
-      v.userData.hover = { base:v.position.y, amp:0.12, speed:1.6+i*0.35, phase:i*1.4 };
+  // ---- game unit roster ----
+  const UNITS = {
+    'Villager':   { cloak:0xb9854f, hat:'point',       accent:COL.hat,  desc:'everyday peasant' },
+    'Worker':     { cloak:0xd08a3a, hat:'cap',         accent:0x8a5a32, prop:'hammer',  desc:'general labourer' },
+    'Lumberjack': { cloak:0xb14730, hat:'cap',         accent:0x7a3b28, prop:'axe',     desc:'chops wood' },
+    'Baker':      { cloak:0xe7dabc, hat:'chef',                          prop:'bread',   desc:'bakes bread' },
+    'Farmer':     { cloak:0x6f9b46, hat:'straw',                         prop:'wheat',   desc:'harvests wheat' },
+    'Miner':      { cloak:0x5a6b7a, hat:'minerhelmet',                   prop:'pickaxe', desc:'mines stone & ore' },
+    'Fisher':     { cloak:0x3b78b0, hat:'point',       accent:0x2a5a86, prop:'rod',     desc:'catches fish' },
+    'Soldier':    { cloak:0x3a5a8a, hat:'helmet',      accent:0xb14730, prop:'soldier', desc:'sword & shield' },
+    'Archer':     { cloak:0x356a31, hat:'hood',        accent:0x2c5528, prop:'bow',     desc:'ranged fighter' }
+  };
+
+  add('Units', 'Full game roster — tap a unit chip to inspect one', g=>{
+    const names = Object.keys(UNITS);
+    const cols = 3, rows = Math.ceil(names.length/cols), sp = 1.7;
+    const y = baseTile(g, Math.max(cols,rows)*sp + 1.4, 0.55, COL.grass);
+    names.forEach((name,i)=>{
+      const cx=i%cols, cz=Math.floor(i/cols);
+      const v = villager(Object.assign({scale:0.72}, UNITS[name]));
+      put(g, v, (cx-(cols-1)/2)*sp, y+0.2, (cz-(rows-1)/2)*sp, 0, 0.3, 0);
+      v.userData.hover = { base:v.position.y, amp:0.1, speed:1.5+(i%3)*0.35, phase:i*0.8 };
+    });
+  });
+
+  Object.keys(UNITS).forEach(name=>{
+    add(name, UNITS[name].desc, g=>{
+      const y = baseTile(g, 2.8, 0.5, COL.grass);
+      const v = villager(Object.assign({scale:1.0}, UNITS[name]));
+      put(g, v, 0, y+0.3, 0);
+      v.userData.hover = { base:v.position.y, amp:0.13, speed:1.7, phase:0 };
     });
   });
 
@@ -426,11 +474,11 @@
     logPile(g, 0, y+0.05, 0, 2, 'z');
     const fire = cone(0.22,0.5,6,COL.fire,{transparent:true,opacity:0.95,rough:0.4}); fire.castShadow=false;
     put(g, fire, 0, y+0.4, 0); fire.userData.flicker = { base:0.5, amp:0.12, speed:8 };
-    // villagers
-    const cloaks=[COL.tunic, COL.roofRed, COL.leaf];
+    // villagers (a mix of unit types)
+    const crew=['Villager','Lumberjack','Farmer'];
     [[-1.2,1.2],[1.4,-0.6],[0.6,2.0]].forEach(([x,z],i)=>{
-      const v = villager(cloaks[i%cloaks.length], 0.62);
-      put(g, v, x, y + 0.2, z, 0, Math.random()*6.28, 0);
+      const v = villager(Object.assign({scale:0.6}, UNITS[crew[i]]));
+      put(g, v, x, y + 0.18, z, 0, Math.random()*6.28, 0);
       v.userData.hover = { base:v.position.y, amp:0.09, speed:1.8+i*0.3, phase:i*1.3 };
     });
   });
@@ -441,7 +489,7 @@
   renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.outputEncoding = THREE.LinearEncoding; // final sRGB is applied in the post shader
 
   const scene = new THREE.Scene();
   // gradient sky
@@ -450,6 +498,8 @@
     const grd=ctx.createLinearGradient(0,0,0,256); grd.addColorStop(0,'#3a4d61'); grd.addColorStop(1,'#161d25');
     ctx.fillStyle=grd; ctx.fillRect(0,0,2,256); const tx=new THREE.CanvasTexture(cnv); tx.encoding=THREE.sRGBEncoding; return tx;
   })();
+
+  scene.fog = new THREE.Fog(0x223444, 16, 42); // soft atmospheric haze (concept "fog of war" tone)
 
   const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
   camera.position.set(7.5, 6.0, 9.0);
@@ -461,20 +511,83 @@
   controls.target.set(0, 2.0, 0);
   controls.autoRotate = true; controls.autoRotateSpeed = 0.9;
 
-  // lights
-  scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x4a3a2a, 0.85));
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
-  const sun = new THREE.DirectionalLight(0xfff2d6, 1.25);
+  // lights: warm golden key + cool sky/fill + cool back rim (concept palette)
+  scene.add(new THREE.HemisphereLight(0xbcd6ff, 0x5a4630, 0.9));
+  scene.add(new THREE.AmbientLight(0x3a4658, 0.22));
+  const sun = new THREE.DirectionalLight(0xffe6b0, 1.45);
   sun.position.set(6, 11, 5); sun.castShadow = true;
   sun.shadow.mapSize.set(2048,2048);
   const sc = sun.shadow.camera; sc.left=-9; sc.right=9; sc.top=9; sc.bottom=-9; sc.near=1; sc.far=40;
   sun.shadow.bias = -0.0005;
   scene.add(sun);
-  const fill = new THREE.DirectionalLight(0x88aaff, 0.35); fill.position.set(-6,4,-4); scene.add(fill);
+  const fill = new THREE.DirectionalLight(0x7da0ff, 0.35); fill.position.set(-6,4,-4); scene.add(fill);
+  const rim = new THREE.DirectionalLight(0xa9c8ff, 0.55); rim.position.set(-4,6,-9); scene.add(rim);
 
   // ground shadow catcher
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({opacity:0.28}));
   ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+  // ---------- stylized post-processing (blur + bloom + grade + vignette + grain) ----------
+  // Self-contained: render scene to a target, then a fullscreen shader. Fails safe to
+  // a plain render if anything goes wrong, so the worst case is "no stylization".
+  const POST_FRAG = [
+    'varying vec2 vUv;',
+    'uniform sampler2D tDiffuse; uniform vec2 uRes;',
+    'uniform float uTime, uGrain, uVignette, uBloom;',
+    'float hash(vec2 p){ p = fract(p*vec2(123.34,456.21)); p += dot(p,p+45.32); return fract(p.x*p.y); }',
+    'vec3 tap(vec2 uv, vec2 t){',
+    '  vec3 c=vec3(0.0); float w=0.0;',
+    '  for(int x=-1;x<=1;x++){ for(int y=-1;y<=1;y++){',
+    '    vec2 o=vec2(float(x),float(y))*t;',
+    '    float k=(x==0&&y==0)?4.0:((x==0||y==0)?2.0:1.0);',
+    '    c+=texture2D(tDiffuse,uv+o).rgb*k; w+=k; }}',
+    '  return c/w;',
+    '}',
+    'void main(){',
+    '  vec2 uv=vUv; vec2 t=1.0/uRes;',
+    '  vec3 sharp=texture2D(tDiffuse,uv).rgb;',
+    '  vec3 blur=tap(uv,t);',
+    '  float d=distance(uv,vec2(0.5));',
+    '  float edge=smoothstep(0.30,0.95,d);',
+    '  vec3 col=mix(sharp,blur,edge*0.75);',          // soft focus toward the edges
+    '  vec3 bright=max(blur-0.62,0.0);',
+    '  col+=bright*uBloom;',                           // gentle bloom on bright bits (fire, gold, sky)
+    '  float luma=dot(col,vec3(0.299,0.587,0.114));',
+    '  col*=mix(vec3(0.90,0.96,1.07),vec3(1.07,1.01,0.92),smoothstep(0.05,0.65,luma));', // cool shadows / warm highs
+    '  col=pow(clamp(col,0.0,1.0),vec3(1.0/2.2));',    // sRGB encode (keeps the palette)
+    '  col*=1.0-uVignette*smoothstep(0.45,1.18,d);',   // vignette
+    '  float g=hash(uv*uRes*0.5+fract(uTime)*97.0);',
+    '  col+=(g-0.5)*uGrain;',                          // film grain
+    '  gl_FragColor=vec4(clamp(col,0.0,1.0),1.0);',
+    '}'
+  ].join('\n');
+
+  function makePost(){
+    const dpr = renderer.getPixelRatio();
+    const rt = new THREE.WebGLRenderTarget(2, 2, { minFilter:THREE.LinearFilter, magFilter:THREE.LinearFilter, type:THREE.UnsignedByteType });
+    const pScene = new THREE.Scene();
+    const pCam = new THREE.OrthographicCamera(-1,1,1,-1,0,1);
+    const uniforms = {
+      tDiffuse:{ value:rt.texture }, uRes:{ value:new THREE.Vector2(2,2) }, uTime:{ value:0 },
+      uGrain:{ value:0.07 }, uVignette:{ value:0.42 }, uBloom:{ value:0.5 }
+    };
+    const quad = new THREE.Mesh(new THREE.PlaneGeometry(2,2), new THREE.ShaderMaterial({
+      uniforms, depthTest:false, depthWrite:false,
+      vertexShader:'varying vec2 vUv; void main(){ vUv=uv; gl_Position=vec4(position.xy,0.0,1.0); }',
+      fragmentShader: POST_FRAG
+    }));
+    pScene.add(quad);
+    return {
+      setSize(w,h){ rt.setSize(Math.max(2,Math.floor(w*dpr)), Math.max(2,Math.floor(h*dpr))); uniforms.uRes.value.set(rt.width, rt.height); },
+      render(time){
+        uniforms.uTime.value = time;
+        renderer.setRenderTarget(rt); renderer.clear(); renderer.render(scene, camera);
+        renderer.setRenderTarget(null); renderer.render(pScene, pCam);
+      }
+    };
+  }
+  let post = null;
+  try { post = makePost(); } catch(e){ post = null; }
 
   // ---------- model framing / swapping ----------
   const TARGET = 6.2;
@@ -538,10 +651,10 @@
       });
     }
     controls.update();
-    renderer.render(scene, camera);
+    if(post) post.render(t); else renderer.render(scene, camera);
   }
 
-  function resize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
+  function resize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); if(post) post.setSize(innerWidth, innerHeight); }
   addEventListener('resize', resize); resize();
 
   // error surface (e.g. 3D engine failed to load)
