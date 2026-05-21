@@ -84,7 +84,7 @@
     flag:0x2f63b8, flagPole:0x4a3320, gold:0xf2c64e, iron:0x565b62, wheat:0xd9b24a,
     water:0x3b78b0, skin:0xd9a273, tunic:0xb9854f, pants:0x39477a, hat:0x2f63b8,
     metal:0x6e757c, leaf:0x3f7a3a, leafDk:0x356a31, leafLt:0x4f9147, rock:0x8d8d88,
-    crate:0xb07d44, fire:0xff7b2e
+    crate:0xb07d44, fire:0xff7b2e, eye:0x2b2b33
   };
 
   // ---------- material + primitive helpers ----------
@@ -101,8 +101,6 @@
   function cyl(rt,rb,h,seg,color,opts){ return mesh(new THREE.CylinderGeometry(rt,rb,h,seg), color, opts); }
   function cone(r,h,seg,color,opts){ return mesh(new THREE.ConeGeometry(r,h,seg), color, opts); }
   function sphere(r,color,opts){ return mesh(new THREE.IcosahedronGeometry(r,0), color, opts); }
-  function capsule(r,len,color,opts){ const g=new THREE.Group();
-    put(g, cyl(r,r,len,10,color,opts)); put(g, sphere(r,color,opts),0,len/2,0); put(g, sphere(r,color,opts),0,-len/2,0); return g; }
   function put(parent, m, x=0,y=0,z=0, rx=0,ry=0,rz=0){ m.position.set(x,y,z); m.rotation.set(rx,ry,rz); parent.add(m); return m; }
 
   // ---------- shared building blocks ----------
@@ -209,6 +207,25 @@
   function boulder(group, x, y, z, s=1){
     const b = sphere(s, COL.rock); b.scale.set(1,0.75,1.1); put(group, b, x, y+s*0.55, z, Math.random(),Math.random(),Math.random());
     return b;
+  }
+  // cute abstract villager: cone body, sphere head, pointed hat, sphere eyes,
+  // detached floating sphere hands. Smooth-shaded to read as a soft toy.
+  function villager(color, scale){
+    scale = scale || 1;
+    const g = new THREE.Group();
+    const soft = {flat:false};
+    put(g, cone(0.46, 1.0, 16, color, soft), 0, 0.5, 0);        // body / cloak
+    put(g, sphere(0.27, COL.skin, soft), 0, 1.05, 0);           // head
+    put(g, cone(0.27, 0.46, 16, COL.hat, soft), 0, 1.45, 0);    // pointed hat
+    put(g, sphere(0.07, COL.hat, soft), 0, 1.7, 0);             // hat bobble
+    put(g, sphere(0.055, COL.eye, soft), -0.1, 1.07, 0.25);     // eyes
+    put(g, sphere(0.055, COL.eye, soft),  0.1, 1.07, 0.25);
+    const lh = sphere(0.1, COL.skin, soft); put(g, lh, -0.5, 0.55, 0.12);
+    lh.userData.hover = { base:0.55, amp:0.07, speed:3.0, phase:0 };
+    const rh = sphere(0.1, COL.skin, soft); put(g, rh, 0.5, 0.55, 0.12);
+    rh.userData.hover = { base:0.55, amp:0.07, speed:3.0, phase:Math.PI };
+    g.scale.setScalar(scale);
+    return g;
   }
 
   // ---------- model builders ----------
@@ -361,24 +378,15 @@
     put(g, sphere(0.1,COL.gold,{metal:0.6,rough:0.3}), 0.7, y+0.7, 0.2);
   });
 
-  add('Villager', 'Modular character (shared skeleton)', g=>{
-    const y = baseTile(g, 2.6, 0.5, COL.grass);
-    const v = new THREE.Group(); put(g, v, 0, y, 0);
-    // legs
-    put(v, box(0.22,0.5,0.24,COL.pants), -0.16,0.25,0); put(v, box(0.22,0.5,0.24,COL.pants), 0.16,0.25,0);
-    put(v, box(0.26,0.14,0.34,COL.timber), -0.16,0.07,0.04); put(v, box(0.26,0.14,0.34,COL.timber), 0.16,0.07,0.04); // boots
-    // torso (capsule-ish)
-    put(v, capsule(0.32,0.5,COL.tunic), 0,0.95,0);
-    put(v, box(0.7,0.12,0.34,COL.timber), 0,0.66,0); // belt
-    // arms
-    const la = capsule(0.1,0.45,COL.tunic); put(v, la, -0.42,0.95,0, 0,0,0.25);
-    const ra = capsule(0.1,0.45,COL.tunic); put(v, ra, 0.42,0.95,0, 0,0,-0.25);
-    // head + hat
-    put(v, sphere(0.26,COL.skin), 0,1.5,0);
-    put(v, cyl(0.3,0.34,0.16,10,COL.hat), 0,1.66,0);
-    put(v, sphere(0.18,COL.hat), 0,1.78,0);
-    // simple idle bob
-    v.userData.bob = { base:v.position.y, amp:0.05, speed:1.8 };
+  add('Villager', 'Cute cone villagers — floating & bobbing', g=>{
+    const y = baseTile(g, 3.2, 0.5, COL.grass);
+    const cloaks = [COL.tunic, COL.roofRed, COL.leaf];
+    const spots = [[0,0,1.0],[0.95,0.3,0.78],[-0.85,-0.4,0.66]];
+    spots.forEach(([x,z,s],i)=>{
+      const v = villager(cloaks[i%cloaks.length], s);
+      put(g, v, x, y + 0.28*s + 0.05, z, 0, (i*2.1), 0);
+      v.userData.hover = { base:v.position.y, amp:0.12, speed:1.6+i*0.35, phase:i*1.4 };
+    });
   });
 
   add('Carryable Goods', 'Log · plank · barrel · wheat · gold', g=>{
@@ -419,10 +427,11 @@
     const fire = cone(0.22,0.5,6,COL.fire,{transparent:true,opacity:0.95,rough:0.4}); fire.castShadow=false;
     put(g, fire, 0, y+0.4, 0); fire.userData.flicker = { base:0.5, amp:0.12, speed:8 };
     // villagers
-    [[-1.2,1.2],[1.4,-0.6],[0.6,2.0]].forEach(([x,z])=>{
-      const v = new THREE.Group(); put(g, v, x, y, z, 0, Math.random()*6.28, 0);
-      put(v, box(0.18,0.4,0.2,COL.pants),0,0.2,0); put(v, capsule(0.22,0.36,COL.tunic),0,0.66,0);
-      put(v, sphere(0.18,COL.skin),0,1.04,0); put(v, cyl(0.21,0.24,0.1,8,COL.hat),0,1.16,0);
+    const cloaks=[COL.tunic, COL.roofRed, COL.leaf];
+    [[-1.2,1.2],[1.4,-0.6],[0.6,2.0]].forEach(([x,z],i)=>{
+      const v = villager(cloaks[i%cloaks.length], 0.62);
+      put(g, v, x, y + 0.2, z, 0, Math.random()*6.28, 0);
+      v.userData.hover = { base:v.position.y, amp:0.09, speed:1.8+i*0.3, phase:i*1.3 };
     });
   });
 
@@ -523,7 +532,7 @@
         const u = o.userData;
         if(u.spin) o.rotation[u.spin.axis] += u.spin.speed*dt;
         if(u.wave) o.rotation[u.wave.axis] = Math.sin(t*u.wave.speed)*u.wave.amp;
-        if(u.bob) o.position.y = u.bob.base + Math.abs(Math.sin(t*u.bob.speed))*u.bob.amp;
+        if(u.hover) o.position.y = u.hover.base + Math.sin(t*u.hover.speed + (u.hover.phase||0))*u.hover.amp;
         if(u.flicker){ const sx=u.flicker.base+Math.sin(t*u.flicker.speed)*u.flicker.amp; o.scale.set(1,sx/0.5,1); }
         if(u.smoke){ const k=((t*u.smoke.speed+u.smoke.off)%1); o.position.y = u.smoke.base + k*u.smoke.range; if(o.material) o.material.opacity = Math.max(0,0.5*(1-k)); }
       });
