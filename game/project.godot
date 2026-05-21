@@ -1,0 +1,18 @@
+; Engine configuration file.
+; Godot 4.x — open this folder (game/) as a project in the Godot editor.
+
+config_version=5
+
+[application]
+
+config/name="Low-Poly Village"
+run/main_scene="res://Main.tscn"
+config/features=PackedStringArray("4.3", "Forward Plus")
+
+[autoload]
+
+GameState="*res://scripts/game_state.gd"
+
+[rendering]
+
+anti_aliasing/quality/msaa_3d=2

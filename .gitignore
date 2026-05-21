@@ -32,3 +32,8 @@ yarn-error.log*
 
 # vercel
 .vercel
+
+# godot
+/game/.godot/
+/game/.import/
+/game/export_presets.cfg
