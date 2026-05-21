@@ -6,7 +6,7 @@ config_version=5
 [application]
 
 config/name="Low-Poly Village"
-run/main_scene="res://Main.tscn"
+run/main_scene="res://Title.tscn"
 config/features=PackedStringArray("4.3", "Forward Plus")
 
 [autoload]

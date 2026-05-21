@@ -101,7 +101,7 @@ func _physics_process(delta: float) -> void:
 			_deliver_t -= delta
 			if _deliver_t <= 0.0:
 				if _carrying:
-					GameState.add("wood", 1)
+					GameState.add_wood(1)
 					_carrying = false
 				_state = St.SEEK
 	_pose()

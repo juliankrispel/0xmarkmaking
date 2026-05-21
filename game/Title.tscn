@@ -1,0 +1,8 @@
+[gd_scene load_steps=2 format=3 uid="uid://cv1lpv0title0"]
+
+[ext_resource type="Script" path="res://scripts/title.gd" id="1_title"]
+
+[node name="Title" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+script = ExtResource("1_title")
