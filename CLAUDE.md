@@ -3,6 +3,9 @@
 This repo holds two related things for a low-poly, Settlers-style village game,
 both developed on branch **`claude/generate-3d-models-QLen9`**.
 
+> See **`CONTINUE.md`** for the fuller playbook: local setup, a Godot
+> verification checklist, prioritized backlog, and ready-to-paste prompts.
+
 ## 1. Web 3D model viewer (Next.js + Three.js)
 
 - **`public/village-models.html`** — a self-contained interactive gallery of the
