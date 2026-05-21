@@ -1,3 +1,28 @@
+# Low-Poly Village — 3D Model Gallery
+
+An interactive 3D gallery of low-poly village game assets, modelled procedurally
+with [Three.js](https://threejs.org/) to match the "settlers-style" concept sheet
+(timber-frame buildings, blue slate roofs, modular base + frame + roof + props).
+
+## Models
+
+Village House · Lumber Camp · Sawmill (animated water wheel) · Watchtower · Farm ·
+Barracks · Warehouse · Quarry · Pine Tree · Rocks · Villager · Carryable Goods ·
+and a combined Village Scene diorama.
+
+## Viewing the gallery
+
+- **Standalone (no build step):** open [`public/village-models.html`](public/village-models.html)
+  in any modern browser. It loads Three.js from a CDN, so it works on desktop and
+  mobile (drag/swipe to orbit, pinch to zoom). Great for opening directly on a phone.
+- **In the Next.js app:** the homepage (`/`) embeds the same viewer. Run the dev
+  server below, then visit [http://localhost:3000](http://localhost:3000). Deploy to
+  Vercel for a permanent public URL.
+
+The model builders live inside `public/village-models.html` (the `<script type="module">`
+block) — each asset is a small composable function using shared helpers
+(base tiles, gable roofs, log/plank piles, flags, trees).
+
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
 
 ## Getting Started

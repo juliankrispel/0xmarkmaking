@@ -1,0 +1,549 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<meta name="theme-color" content="#1d2733" />
+<title>Low-Poly Village — 3D Model Gallery</title>
+<style>
+  :root { --bg0:#26333f; --bg1:#161d25; --panel:rgba(18,24,31,.82); --ink:#eef2f6; --muted:#9fb0c0; --accent:#4d7fd6; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin:0; height:100%; overflow:hidden; background:var(--bg1);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif; color:var(--ink); }
+  #c { display:block; width:100vw; height:100vh; touch-action:none; }
+  .top { position:fixed; top:0; left:0; right:0; padding:10px 12px 8px; z-index:5;
+    background:linear-gradient(180deg, rgba(10,14,19,.78), rgba(10,14,19,0)); pointer-events:none; }
+  .top h1 { margin:0; font-size:16px; letter-spacing:.3px; font-weight:700; }
+  .top h1 span { color:var(--accent); }
+  .top p { margin:2px 0 0; font-size:12px; color:var(--muted); }
+  .caption { position:fixed; left:0; right:0; bottom:78px; text-align:center; z-index:5;
+    font-size:13px; color:var(--muted); pointer-events:none; padding:0 16px; }
+  .caption b { color:var(--ink); }
+  .bar { position:fixed; left:0; right:0; bottom:0; z-index:6; padding:10px 10px 14px;
+    background:linear-gradient(0deg, rgba(10,14,19,.92), rgba(10,14,19,0));
+    display:flex; gap:8px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+  .bar::-webkit-scrollbar { display:none; }
+  .chip { flex:0 0 auto; border:1px solid rgba(255,255,255,.12); background:var(--panel);
+    color:var(--ink); font-size:13px; font-weight:600; padding:9px 13px; border-radius:999px;
+    white-space:nowrap; cursor:pointer; transition:.15s; }
+  .chip:hover { border-color:rgba(255,255,255,.3); }
+  .chip.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .ctrl { position:fixed; top:10px; right:10px; z-index:6; display:flex; gap:8px; }
+  .ctrl button { border:1px solid rgba(255,255,255,.14); background:var(--panel); color:var(--ink);
+    width:40px; height:40px; border-radius:10px; font-size:17px; cursor:pointer; }
+  .ctrl button.on { background:var(--accent); border-color:var(--accent); }
+  .hint { position:fixed; left:0; right:0; bottom:120px; text-align:center; font-size:11px; color:var(--muted);
+    z-index:4; pointer-events:none; opacity:.85; }
+  .err { position:fixed; inset:0; display:none; place-items:center; padding:24px; text-align:center;
+    color:#ffd7d7; font-size:14px; line-height:1.5; z-index:10; }
+</style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div class="top">
+    <h1>Low-Poly Village <span>· 3D Models</span></h1>
+    <p>Drag / swipe to orbit · pinch or scroll to zoom</p>
+  </div>
+  <div class="ctrl">
+    <button id="spin" class="on" title="Auto-rotate">&#10227;</button>
+    <button id="reset" title="Reset view">&#9678;</button>
+  </div>
+  <div class="caption" id="caption"></div>
+  <div class="hint" id="hint">Pick a model below</div>
+  <div class="bar" id="bar"></div>
+  <div class="err" id="err"></div>
+
+  <script>
+    // Fallback for browsers without ES-module / import-map support: if the
+    // module below never runs, show a clear message instead of a blank canvas.
+    window.addEventListener('load', function () {
+      setTimeout(function () {
+        if (!window.__villageReady) {
+          var el = document.getElementById('err');
+          el.style.display = 'grid';
+          el.innerHTML = 'Could not start the 3D engine.<br>Open this file in an up-to-date browser (Chrome, or Safari on iOS&nbsp;16.4+) with an internet connection.';
+        }
+      }, 6000);
+    });
+  </script>
+
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+      "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"
+    }
+  }
+  </script>
+
+  <script type="module">
+  import * as THREE from 'three';
+  import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+  // ---------- palette ----------
+  const COL = {
+    grass:0x83b056, grassDark:0x6f9b46, soil:0x70512f, soilDark:0x5a3f24,
+    plaster:0xe7dabc, plaster2:0xd8c79e, timber:0x5e3a22, timberDark:0x46291650,
+    log:0x9a6336, logEnd:0xc79a6a, plank:0xc59a5e, roofBlue:0x46699a, roofBlueDk:0x36507c,
+    roofRed:0xb14730, thatch:0xd8b24a, thatchDk:0xc49a36, stone:0x9b9b95, stoneDk:0x82827c,
+    flag:0x2f63b8, flagPole:0x4a3320, gold:0xf2c64e, iron:0x565b62, wheat:0xd9b24a,
+    water:0x3b78b0, skin:0xd9a273, tunic:0xb9854f, pants:0x39477a, hat:0x2f63b8,
+    metal:0x6e757c, leaf:0x3f7a3a, leafDk:0x356a31, leafLt:0x4f9147, rock:0x8d8d88,
+    crate:0xb07d44, fire:0xff7b2e
+  };
+
+  // ---------- material + primitive helpers ----------
+  const _mats = new Map();
+  function mat(color, {flat=true, rough=0.95, metal=0.0, transparent=false, opacity=1}={}){
+    const key = `${color}|${flat}|${rough}|${metal}|${transparent}|${opacity}`;
+    if(_mats.has(key) && !transparent) return _mats.get(key);
+    const m = new THREE.MeshStandardMaterial({ color, flatShading:flat, roughness:rough, metalness:metal, transparent, opacity });
+    if(!transparent) _mats.set(key, m);
+    return m;
+  }
+  function mesh(geo, color, opts){ const m = new THREE.Mesh(geo, mat(color, opts)); m.castShadow=true; m.receiveShadow=true; return m; }
+  function box(w,h,d,color,opts){ return mesh(new THREE.BoxGeometry(w,h,d), color, opts); }
+  function cyl(rt,rb,h,seg,color,opts){ return mesh(new THREE.CylinderGeometry(rt,rb,h,seg), color, opts); }
+  function cone(r,h,seg,color,opts){ return mesh(new THREE.ConeGeometry(r,h,seg), color, opts); }
+  function sphere(r,color,opts){ return mesh(new THREE.IcosahedronGeometry(r,0), color, opts); }
+  function put(parent, m, x=0,y=0,z=0, rx=0,ry=0,rz=0){ m.position.set(x,y,z); m.rotation.set(rx,ry,rz); parent.add(m); return m; }
+
+  // ---------- shared building blocks ----------
+  function baseTile(group, size=4.4, h=0.55, top=COL.grass){
+    const soil = box(size, h, size, COL.soil); put(group, soil, 0, h/2, 0);
+    // tapered illusion: thin darker rim
+    const grass = box(size*1.02, 0.2, size*1.02, top); put(group, grass, 0, h+0.08, 0);
+    // a couple of grass tufts / pebbles
+    for(let i=0;i<4;i++){
+      const a = Math.random()*Math.PI*2, r = size*0.36;
+      put(group, sphere(0.07+Math.random()*0.05, COL.stone), Math.cos(a)*r, h+0.2, Math.sin(a)*r);
+    }
+    return h + 0.18; // returns Y of grass top surface
+  }
+
+  // gable roof: two sloped slabs, ridge runs along Z (depth)
+  function gableRoof(group, w, d, roofH, color, baseY, overhang=0.45, thick=0.16){
+    const half = w/2 + overhang;
+    const slant = Math.hypot(half, roofH);
+    const ang = Math.atan2(roofH, half);
+    const dd = d + overhang*1.4;
+    const L = box(slant, thick, dd, color); put(group, L, -half/2, baseY + roofH/2, 0, 0,0, ang);
+    const R = box(slant, thick, dd, color); put(group, R, half/2, baseY + roofH/2, 0, 0,0, -ang);
+    // ridge cap
+    const ridge = box(0.22, 0.22, dd, color); put(group, ridge, 0, baseY+roofH+0.03, 0, Math.PI/4,0,0);
+    return baseY + roofH;
+  }
+  function gableEnds(group, w, roofH, color, baseY, depth, t=0.12){
+    const shape = new THREE.Shape();
+    shape.moveTo(-w/2,0); shape.lineTo(w/2,0); shape.lineTo(0,roofH); shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, {depth:t, bevelEnabled:false});
+    [depth/2 - t/2, -depth/2 - t/2].forEach(z=>{
+      const m = new THREE.Mesh(geo, mat(color)); m.castShadow=true; m.receiveShadow=true;
+      m.position.set(0, baseY, z); group.add(m);
+    });
+  }
+
+  // timber-frame walls: plaster box + dark corner posts + beams
+  function timberWalls(group, w, h, d, baseY, plaster=COL.plaster){
+    put(group, box(w, h, d, plaster), 0, baseY + h/2, 0);
+    const p = 0.16;
+    [[-1,-1],[1,-1],[-1,1],[1,1]].forEach(([sx,sz])=>{
+      put(group, box(p, h, p, COL.timber), sx*(w/2-p/2), baseY+h/2, sz*(d/2-p/2));
+    });
+    // top + bottom beams (front/back)
+    [d/2-0.04, -d/2+0.04].forEach(z=>{
+      put(group, box(w, p, 0.1, COL.timber), 0, baseY+h-p/2, z);
+      put(group, box(w, p, 0.1, COL.timber), 0, baseY+p/2, z);
+      put(group, box(p, h, 0.1, COL.timber), 0, baseY+h/2, z); // mid stud
+    });
+  }
+
+  function door(group, baseY, z, w=0.6, h=1.0){ put(group, box(w, h, 0.12, COL.timber), 0, baseY+h/2, z); }
+  function windowPane(group, x, y, z, s=0.42){ put(group, box(s, s, 0.1, COL.roofBlueDk), x, y, z); }
+  function chimney(group, x, baseY, z, h=0.9){
+    put(group, box(0.4, h, 0.4, COL.stone), x, baseY+h/2, z);
+    smokeStack(group, x, baseY+h+0.1, z);
+  }
+  function smokeStack(group, x, y, z){
+    for(let i=0;i<4;i++){
+      const p = sphere(0.16+i*0.05, 0xdfe5ea, {flat:true, transparent:true, opacity:0.5-i*0.09});
+      p.castShadow=false; put(group, p, x, y+i*0.4, z);
+      p.userData.smoke = { base:y, range:1.8, speed:0.5, off:i*0.45, x, z, amp:0.18 };
+    }
+  }
+  function flag(group, x, baseY, z, height=2.2){
+    put(group, cyl(0.05,0.05,height,6,COL.flagPole), x, baseY+height/2, z);
+    const f = box(0.7,0.5,0.04, COL.flag); put(group, f, x+0.4, baseY+height-0.35, z);
+    f.userData.wave = { base:0, amp:0.18, speed:2.2, axis:'y', pivotX:x };
+    // emblem
+    put(group, box(0.18,0.18,0.02, COL.gold), x+0.4, baseY+height-0.35, z+0.03);
+  }
+  function logPile(group, x, y, z, n=3, dir='z'){
+    for(let i=0;i<n;i++){
+      const l = cyl(0.16,0.16,1.3,8,COL.log);
+      if(dir==='z'){ l.rotation.x = Math.PI/2; put(group, l, x, y+0.16, z + (i-(n-1)/2)*0.36); }
+      else { l.rotation.z = Math.PI/2; put(group, l, x + (i-(n-1)/2)*0.36, y+0.16, z); }
+    }
+    // second row
+    for(let i=0;i<n-1;i++){
+      const l = cyl(0.16,0.16,1.3,8,COL.log);
+      if(dir==='z'){ l.rotation.x = Math.PI/2; put(group, l, x, y+0.48, z + (i-(n-2)/2)*0.36); }
+      else { l.rotation.z = Math.PI/2; put(group, l, x + (i-(n-2)/2)*0.36, y+0.48, z); }
+    }
+  }
+  function plankPile(group, x, y, z, n=4){
+    for(let i=0;i<n;i++) put(group, box(1.3,0.1,0.5,COL.plank), x, y+0.06+i*0.13, z, 0, 0.04*i, 0);
+  }
+  function barrel(group, x, y, z){
+    put(group, cyl(0.28,0.32,0.6,10,COL.log), x, y+0.3, z);
+    put(group, cyl(0.34,0.34,0.12,10,COL.metal,{rough:0.5,metal:0.4}), x, y+0.18, z);
+    put(group, cyl(0.34,0.34,0.12,10,COL.metal,{rough:0.5,metal:0.4}), x, y+0.45, z);
+  }
+  function crate(group, x, y, z, s=0.55){
+    put(group, box(s,s,s,COL.crate), x, y+s/2, z);
+    put(group, box(s*1.02,0.08,0.08,COL.timber), x, y+s*0.75, z);
+    put(group, box(s*1.02,0.08,0.08,COL.timber), x, y+s*0.25, z);
+  }
+  function pine(group, x, y, z, scale=1){
+    put(group, cyl(0.14*scale,0.18*scale,0.7*scale,7,COL.log), x, y+0.35*scale, z);
+    const cols=[COL.leafDk,COL.leaf,COL.leafLt];
+    for(let i=0;i<3;i++) put(group, cone((0.85-i*0.22)*scale, (1.0)*scale, 7, cols[i]), x, y+(0.85+i*0.55)*scale, z);
+  }
+  function boulder(group, x, y, z, s=1){
+    const b = sphere(s, COL.rock); b.scale.set(1,0.75,1.1); put(group, b, x, y+s*0.55, z, Math.random(),Math.random(),Math.random());
+    return b;
+  }
+
+  // ---------- model builders ----------
+  const MODELS = {};
+  const add = (name, caption, fn) => { MODELS[name] = { caption, fn }; };
+
+  add('Village House', 'Tudor cottage with blue slate roof', g=>{
+    const y = baseTile(g);
+    timberWalls(g, 2.6, 1.5, 2.0, y);
+    const top = y + 1.5;
+    gableEnds(g, 2.6, 1.3, COL.plaster2, top, 2.0);
+    gableRoof(g, 2.6, 2.0, 1.3, COL.roofBlue, top);
+    door(g, y, 1.01);
+    windowPane(g, -0.8, y+0.9, 1.01); windowPane(g, 0.8, y+0.9, 1.01);
+    chimney(g, 0.85, top-0.1, -0.4);
+  });
+
+  add('Lumber Camp', 'Open timber frame, log piles & saw', g=>{
+    const y = baseTile(g, 4.8);
+    // open frame posts
+    [[-1.3,-1.0],[1.3,-1.0],[-1.3,1.0],[1.3,1.0]].forEach(([x,z])=> put(g, box(0.22,1.7,0.22,COL.log), x, y+0.85, z));
+    [-1.0,1.0].forEach(z=> put(g, box(2.84,0.2,0.2,COL.timber), 0, y+1.7, z));
+    gableEnds(g, 2.84, 0.9, COL.timber, y+1.7, 2.2, 0.1);
+    gableRoof(g, 2.84, 2.2, 0.9, COL.roofBlue, y+1.7, 0.4);
+    logPile(g, -1.6, y, 0.6, 3, 'z');
+    // sawbuck with a log
+    put(g, box(0.1,0.7,0.1,COL.timber), 1.3, y+0.35, -0.2, 0,0, 0.4);
+    put(g, box(0.1,0.7,0.1,COL.timber), 1.3, y+0.35, -0.2, 0,0,-0.4);
+    const sl = cyl(0.18,0.18,1.4,8,COL.log); sl.rotation.x=Math.PI/2; put(g, sl, 1.3, y+0.7, -0.2);
+    flag(g, 2.0, y, 1.4, 2.0);
+  });
+
+  add('Sawmill', 'Water wheel turns logs into planks', g=>{
+    const y = baseTile(g, 4.8);
+    timberWalls(g, 2.4, 1.4, 1.8, y, COL.plaster2);
+    const top = y+1.4;
+    gableEnds(g, 2.4, 1.1, COL.plaster, top, 1.8);
+    gableRoof(g, 2.4, 1.8, 1.1, COL.roofBlue, top);
+    // water wheel on the side
+    const wheelHub = new THREE.Group();
+    put(g, wheelHub, 1.7, y+0.85, 0);
+    const ring = mesh(new THREE.TorusGeometry(0.85,0.1,6,16), COL.log); ring.rotation.y=Math.PI/2; wheelHub.add(ring);
+    for(let i=0;i<8;i++){
+      const a=i/8*Math.PI*2;
+      const spoke = box(0.08,1.6,0.08,COL.timber); spoke.rotation.x=a; wheelHub.add(spoke);
+      const pad = box(0.12,0.36,0.5,COL.log); put(wheelHub, pad, 0, Math.cos(a)*0.85, Math.sin(a)*0.85, a,0,0);
+    }
+    wheelHub.userData.spin = { axis:'x', speed:0.9 };
+    // water trough
+    put(g, box(0.5,0.2,1.6,COL.water,{rough:0.3,metal:0.1}), 1.7, y+0.05, 0);
+    plankPile(g, -1.4, y, 0.9);
+    logPile(g, -1.4, y, -0.8, 2, 'x');
+  });
+
+  add('Watchtower', 'Stone & timber lookout with banner', g=>{
+    const y = baseTile(g, 3.6);
+    put(g, box(1.5,1.2,1.5,COL.stone), 0, y+0.6, 0);              // stone base
+    put(g, box(1.25,2.2,1.25,COL.timber), 0, y+1.2+1.1, 0);       // timber shaft
+    put(g, box(1.2,1.3,1.2,COL.plaster2), 0, y+3.3+0.65, 0);      // top room
+    // overhang platform
+    put(g, box(1.55,0.18,1.55,COL.timber), 0, y+3.3, 0);
+    const top = y+3.3+1.3;
+    cone(1.15,1.4,4,COL.roofBlue); // placeholder (not added)
+    const roof = cone(1.2,1.5,4,COL.roofBlue); put(g, roof, 0, top+0.75, 0, 0, Math.PI/4, 0);
+    // windows on top room
+    [[0,1],[0,-1],[1,0],[-1,0]].forEach(([sx,sz])=> windowPane(g, sx*0.61, y+3.95, sz*0.61, 0.3));
+    flag(g, 0, top+1.0, 0, 1.4);
+  });
+
+  add('Farm', 'Cottage, thatch roof & wheat field', g=>{
+    const y = baseTile(g, 5.2, 0.55, COL.grassDark);
+    // small cottage at back
+    timberWalls(g, 1.8, 1.2, 1.4, y, COL.plaster);
+    const top = y+1.2;
+    gableEnds(g, 1.8, 1.0, COL.thatch, top, 1.4);
+    gableRoof(g, 1.8, 1.4, 1.0, COL.thatch, top, 0.4);
+    // wheat field rows in front
+    for(let r=0;r<4;r++){
+      for(let cc=0;cc<7;cc++){
+        const wx = -1.7 + cc*0.56, wz = 0.4 + r*0.5;
+        const h = 0.5 + Math.random()*0.18;
+        put(g, box(0.16, h, 0.16, COL.wheat), wx, y+h/2, wz);
+      }
+    }
+    // little fence
+    for(let i=0;i<6;i++) put(g, box(0.08,0.5,0.08,COL.log), -1.9+i*0.62, y+0.25, 2.0);
+  });
+
+  add('Barracks', 'Military hall with banners', g=>{
+    const y = baseTile(g, 4.8);
+    timberWalls(g, 3.0, 1.5, 2.0, y, COL.timber);
+    const top = y+1.5;
+    gableEnds(g, 3.0, 1.0, COL.roofBlueDk, top, 2.0);
+    gableRoof(g, 3.0, 2.0, 1.0, COL.roofBlue, top);
+    door(g, y, 1.01, 0.8, 1.2);
+    // weapon rack: spears
+    for(let i=0;i<4;i++){ put(g, cyl(0.04,0.04,1.2,6,COL.log), -1.0+i*0.25, y+0.6, -0.95);
+      put(g, cone(0.07,0.18,5,COL.metal,{metal:0.4,rough:0.4}), -1.0+i*0.25, y+1.25, -0.95); }
+    // shield by the door
+    const sh = cyl(0.32,0.32,0.08,8,COL.flag); sh.rotation.x=Math.PI/2; put(g, sh, 1.0, y+0.4, 1.05);
+    put(g, sphere(0.08,COL.gold), 1.0, y+0.4, 1.12);
+    flag(g, 1.6, y, -1.0, 2.4); flag(g, -1.6, y, -1.0, 2.4);
+  });
+
+  add('Warehouse', 'Storage shed with crates & barrels', g=>{
+    const y = baseTile(g, 5.0);
+    put(g, box(3.2,1.3,2.2,COL.plank), 0, y+0.65, 0);
+    // plank siding lines
+    for(let i=0;i<4;i++) put(g, box(3.22,0.06,2.22,COL.timber), 0, y+0.25+i*0.32, 0);
+    const top = y+1.3;
+    gableEnds(g, 3.2, 0.7, COL.roofBlueDk, top, 2.2);
+    gableRoof(g, 3.2, 2.2, 0.7, COL.roofBlue, top);
+    // big sliding door
+    put(g, box(1.1,1.1,0.08,COL.timber), 0, y+0.55, 1.12);
+    crate(g, -2.1, y, 0.4); crate(g, -2.1, y, -0.5, 0.5);
+    barrel(g, 2.1, y, 0.3); barrel(g, 2.1, y, -0.4);
+  });
+
+  add('Quarry', 'Rock face with crane & stone blocks', g=>{
+    const y = baseTile(g, 5.0, 0.55, COL.grassDark);
+    // rocky outcrop
+    boulder(g, -1.4, y, -1.2, 1.3); boulder(g, -0.4, y, -1.5, 1.0); boulder(g, -1.6, y, -0.2, 0.9);
+    // crane
+    put(g, box(0.18,2.2,0.18,COL.log), 1.4, y+1.1, 1.0);
+    const armPivot = new THREE.Group(); put(g, armPivot, 1.4, y+2.1, 1.0);
+    const arm = box(2.2,0.14,0.14,COL.timber); put(armPivot, arm, -0.9, 0, 0);
+    put(armPivot, cyl(0.02,0.02,1.0,5,COL.flagPole), -1.8, -0.5, 0);
+    put(armPivot, box(0.4,0.4,0.4,COL.stone), -1.8, -1.05, 0);
+    armPivot.userData.wave = { base:0, amp:0.25, speed:0.8, axis:'y', pivotX:0 };
+    // cut stone blocks
+    put(g, box(0.5,0.5,0.5,COL.stone), -0.2, y+0.25, 1.2);
+    put(g, box(0.5,0.5,0.5,COL.stoneDk), 0.4, y+0.25, 1.4);
+    put(g, box(0.5,0.5,0.5,COL.stone), 0.1, y+0.75, 1.3);
+    flag(g, 1.9, y, -1.4, 2.0);
+  });
+
+  add('Pine Tree', 'Forest biome prop', g=>{
+    const y = baseTile(g, 3.0, 0.5, COL.grassDark);
+    pine(g, 0, y, 0, 1.25);
+    pine(g, 0.9, y, 0.6, 0.7);
+    boulder(g, -0.9, y, 0.7, 0.35);
+    for(let i=0;i<5;i++){ const a=Math.random()*6.28; put(g, sphere(0.05,COL.leaf), Math.cos(a)*0.9, y+0.05, Math.sin(a)*0.9); }
+  });
+
+  add('Rocks', 'Rocky biome boulders & ore', g=>{
+    const y = baseTile(g, 3.4, 0.5, COL.stoneDk);
+    boulder(g, -0.6, y, -0.4, 1.0); boulder(g, 0.7, y, 0.2, 0.8); boulder(g, 0.0, y, 0.9, 0.6);
+    // iron ore veins (dark cubes with shiny bits)
+    put(g, box(0.35,0.35,0.35,COL.iron,{metal:0.5,rough:0.5}), -0.6, y+0.9, -0.4);
+    put(g, sphere(0.1,COL.gold,{metal:0.6,rough:0.3}), 0.7, y+0.7, 0.2);
+  });
+
+  add('Villager', 'Modular character (shared skeleton)', g=>{
+    const y = baseTile(g, 2.6, 0.5, COL.grass);
+    const v = new THREE.Group(); put(g, v, 0, y, 0);
+    // legs
+    put(v, box(0.22,0.5,0.24,COL.pants), -0.16,0.25,0); put(v, box(0.22,0.5,0.24,COL.pants), 0.16,0.25,0);
+    put(v, box(0.26,0.14,0.34,COL.timber), -0.16,0.07,0.04); put(v, box(0.26,0.14,0.34,COL.timber), 0.16,0.07,0.04); // boots
+    // torso (capsule-ish)
+    put(v, mesh(new THREE.CapsuleGeometry(0.32,0.5,3,8), COL.tunic), 0,0.95,0);
+    put(v, box(0.7,0.12,0.34,COL.timber), 0,0.66,0); // belt
+    // arms
+    const la = mesh(new THREE.CapsuleGeometry(0.1,0.45,2,6), COL.tunic); put(v, la, -0.42,0.95,0, 0,0,0.25);
+    const ra = mesh(new THREE.CapsuleGeometry(0.1,0.45,2,6), COL.tunic); put(v, ra, 0.42,0.95,0, 0,0,-0.25);
+    // head + hat
+    put(v, sphere(0.26,COL.skin), 0,1.5,0);
+    put(v, cyl(0.3,0.34,0.16,10,COL.hat), 0,1.66,0);
+    put(v, sphere(0.18,COL.hat), 0,1.78,0);
+    // simple idle bob
+    v.userData.bob = { base:v.position.y, amp:0.05, speed:1.8 };
+  });
+
+  add('Carryable Goods', 'Log · plank · barrel · wheat · gold', g=>{
+    const y = baseTile(g, 4.6, 0.5, COL.grass);
+    // log
+    const l = cyl(0.22,0.22,1.1,8,COL.log); l.rotation.z=Math.PI/2; put(g, l, -1.5, y+0.22, -0.6);
+    put(g, cyl(0.22,0.22,0.02,8,COL.logEnd), -2.05, y+0.22, -0.6, 0,0,Math.PI/2);
+    // planks
+    plankPile(g, 1.4, y, -0.6);
+    // barrel
+    barrel(g, -1.4, y, 0.8);
+    // wheat sheaf
+    for(let i=0;i<7;i++){ const a=i/7*6.28; put(g, box(0.07,0.7,0.07,COL.wheat), Math.cos(a)*0.12, y+0.35, 0.8+Math.sin(a)*0.12, Math.cos(a)*0.18,0,Math.sin(a)*0.18); }
+    put(g, cyl(0.2,0.2,0.16,8,COL.flagPole), 0, y+0.1, 0.8);
+    // gold bars (stacked pyramid)
+    const gb=(x,z,yy)=> put(g, box(0.4,0.18,0.22,COL.gold,{metal:0.55,rough:0.35}), x, yy, z);
+    gb(1.4,0.8,y+0.1); gb(1.4,1.08,y+0.1); gb(1.4,0.94,y+0.29);
+  });
+
+  add('Village Scene', 'Mini diorama of the settlement', g=>{
+    const y = baseTile(g, 8.0, 0.6, COL.grass);
+    // dirt path
+    put(g, box(1.1,0.04,7.0,COL.soilDark), 0, y+0.01, 0);
+    put(g, box(7.0,0.04,1.1,COL.soilDark), 0, y+0.01, 0);
+    // place simple house
+    const h = new THREE.Group(); put(g, h, -2.2, y, -2.0, 0,0.3,0);
+    timberWalls(h, 1.6,1.0,1.3,0); gableEnds(h,1.6,0.85,COL.plaster2,1.0,1.3); gableRoof(h,1.6,1.3,0.85,COL.roofBlue,1.0,0.3); chimney(h,0.5,0.9,-0.3,0.5);
+    // tower
+    const t = new THREE.Group(); put(g, t, 2.4, y, 1.8);
+    put(t, box(0.9,0.8,0.9,COL.stone),0,0.4,0); put(t, box(0.8,1.6,0.8,COL.timber),0,1.2,0); put(t, box(0.85,0.7,0.85,COL.plaster2),0,2.35,0);
+    const tr = cone(0.8,1.0,4,COL.roofBlue); put(t, tr, 0,3.2,0,0,Math.PI/4,0); flag(t,0,3.7,0,1.0);
+    // trees
+    pine(g, -3.0, y, 1.8, 1.0); pine(g, -2.2, y, 2.6, 0.7); pine(g, 3.0, y, -2.6, 0.9); pine(g, 2.0, y, -3.0, 0.6);
+    boulder(g, -3.2, y, -2.6, 0.6); boulder(g, 3.2, y, 2.6, 0.5);
+    // campfire centre
+    put(g, cyl(0.4,0.5,0.12,8,COL.soilDark), 0, y+0.06, 0);
+    logPile(g, 0, y+0.05, 0, 2, 'z');
+    const fire = cone(0.22,0.5,6,COL.fire,{transparent:true,opacity:0.95,rough:0.4}); fire.castShadow=false;
+    put(g, fire, 0, y+0.4, 0); fire.userData.flicker = { base:0.5, amp:0.12, speed:8 };
+    // villagers
+    [[-1.2,1.2],[1.4,-0.6],[0.6,2.0]].forEach(([x,z])=>{
+      const v = new THREE.Group(); put(g, v, x, y, z, 0, Math.random()*6.28, 0);
+      put(v, box(0.18,0.4,0.2,COL.pants),0,0.2,0); put(v, mesh(new THREE.CapsuleGeometry(0.22,0.36,2,6),COL.tunic),0,0.66,0);
+      put(v, sphere(0.18,COL.skin),0,1.04,0); put(v, cyl(0.21,0.24,0.1,8,COL.hat),0,1.16,0);
+    });
+  });
+
+  // ---------- scene / renderer ----------
+  const canvas = document.getElementById('c');
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+  renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+  const scene = new THREE.Scene();
+  // gradient sky
+  scene.background = (()=>{
+    const cnv=document.createElement('canvas'); cnv.width=2; cnv.height=256; const ctx=cnv.getContext('2d');
+    const grd=ctx.createLinearGradient(0,0,0,256); grd.addColorStop(0,'#3a4d61'); grd.addColorStop(1,'#161d25');
+    ctx.fillStyle=grd; ctx.fillRect(0,0,2,256); const tx=new THREE.CanvasTexture(cnv); tx.colorSpace=THREE.SRGBColorSpace; return tx;
+  })();
+
+  const camera = new THREE.PerspectiveCamera(42, innerWidth/innerHeight, 0.1, 100);
+  camera.position.set(7.5, 6.0, 9.0);
+
+  const controls = new OrbitControls(camera, canvas);
+  controls.enableDamping = true; controls.dampingFactor = 0.08;
+  controls.minDistance = 4; controls.maxDistance = 22;
+  controls.maxPolarAngle = Math.PI*0.49;
+  controls.target.set(0, 2.0, 0);
+  controls.autoRotate = true; controls.autoRotateSpeed = 0.9;
+
+  // lights
+  scene.add(new THREE.HemisphereLight(0xcfe3ff, 0x4a3a2a, 0.85));
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  const sun = new THREE.DirectionalLight(0xfff2d6, 1.25);
+  sun.position.set(6, 11, 5); sun.castShadow = true;
+  sun.shadow.mapSize.set(2048,2048);
+  const sc = sun.shadow.camera; sc.left=-9; sc.right=9; sc.top=9; sc.bottom=-9; sc.near=1; sc.far=40;
+  sun.shadow.bias = -0.0005;
+  scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x88aaff, 0.35); fill.position.set(-6,4,-4); scene.add(fill);
+
+  // ground shadow catcher
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(60,60), new THREE.ShadowMaterial({opacity:0.28}));
+  ground.rotation.x = -Math.PI/2; ground.receiveShadow = true; scene.add(ground);
+
+  // ---------- model framing / swapping ----------
+  const TARGET = 6.2;
+  let current = null;
+  const clock = new THREE.Clock();
+
+  function frame(group){
+    const bb = new THREE.Box3().setFromObject(group);
+    const size = new THREE.Vector3(); bb.getSize(size);
+    const center = new THREE.Vector3(); bb.getCenter(center);
+    const maxDim = Math.max(size.x, size.y, size.z) || 1;
+    const s = TARGET / maxDim;
+    group.scale.setScalar(s);
+    // recompute after scaling
+    const bb2 = new THREE.Box3().setFromObject(group);
+    const c2 = new THREE.Vector3(); bb2.getCenter(c2);
+    group.position.x -= c2.x; group.position.z -= c2.z;
+    group.position.y -= bb2.min.y; // sit on ground
+  }
+
+  function show(name){
+    if(current){ scene.remove(current); }
+    const group = new THREE.Group();
+    MODELS[name].fn(group);
+    frame(group);
+    scene.add(group);
+    current = group;
+    document.getElementById('caption').innerHTML = `<b>${name}</b> — ${MODELS[name].caption}`;
+    document.getElementById('hint').style.display='none';
+    // active chip
+    [...document.querySelectorAll('.chip')].forEach(c=> c.classList.toggle('active', c.dataset.name===name));
+    // frame target height
+    const bb = new THREE.Box3().setFromObject(group); const sz=new THREE.Vector3(); bb.getSize(sz);
+    controls.target.set(0, Math.min(sz.y*0.45, 3.0), 0);
+  }
+
+  // build chips
+  const bar = document.getElementById('bar');
+  Object.keys(MODELS).forEach((name,i)=>{
+    const b = document.createElement('button'); b.className='chip'; b.textContent=name; b.dataset.name=name;
+    b.onclick = ()=> show(name); bar.appendChild(b);
+  });
+
+  // controls
+  const spinBtn = document.getElementById('spin');
+  spinBtn.onclick = ()=>{ controls.autoRotate = !controls.autoRotate; spinBtn.classList.toggle('on', controls.autoRotate); };
+  document.getElementById('reset').onclick = ()=>{ camera.position.set(7.5,6.0,9.0); controls.target.set(0,2.0,0); };
+
+  // ---------- animation ----------
+  function animate(){
+    requestAnimationFrame(animate);
+    const t = clock.getElapsedTime(); const dt = Math.min(clock.getDelta(), 0.05);
+    if(current){
+      current.traverse(o=>{
+        const u = o.userData;
+        if(u.spin) o.rotation[u.spin.axis] += u.spin.speed*dt;
+        if(u.wave) o.rotation[u.wave.axis] = Math.sin(t*u.wave.speed)*u.wave.amp;
+        if(u.bob) o.position.y = u.bob.base + Math.abs(Math.sin(t*u.bob.speed))*u.bob.amp;
+        if(u.flicker){ const sx=u.flicker.base+Math.sin(t*u.flicker.speed)*u.flicker.amp; o.scale.set(1,sx/0.5,1); }
+        if(u.smoke){ const k=((t*u.smoke.speed+u.smoke.off)%1); o.position.y = u.smoke.base + k*u.smoke.range; if(o.material) o.material.opacity = Math.max(0,0.5*(1-k)); }
+      });
+    }
+    controls.update();
+    renderer.render(scene, camera);
+  }
+
+  function resize(){ camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); }
+  addEventListener('resize', resize); resize();
+
+  // error surface (e.g. importmap unsupported)
+  addEventListener('error', e=>{ const el=document.getElementById('err'); el.style.display='grid'; el.textContent='Could not load 3D engine. Open this file in a modern browser (Chrome/Safari) with internet access.'; });
+
+  show(Object.keys(MODELS)[0]);
+  animate();
+  window.__villageReady = true;
+  </script>
+</body>
+</html>
